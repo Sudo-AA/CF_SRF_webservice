@@ -21,8 +21,8 @@ namespace CF_SRF
     // NOTE: In order to launch WCF Test Client for testing this service, please select Service1.svc or Service1.svc.cs at the Solution Explorer and start debugging.
     public class CF_SRF_SERVICE : ICF_SRF_SERVICE1
     {
-        private string conn_string = "Data Source =CF-SQL\\CFSQLSERVER; Initial Catalog=cleanfuel; uid=sa; pwd=Cleanfuel1"; // live
-        //private string conn_string = "Data Source =CF-IT\\CFSTNSERVER; Initial Catalog=CFappDatabase; uid=sa; pwd=Cl3@nfu3l"; // testing
+        //private string conn_string = "Data Source =CF-SQL\\CFSQLSERVER; Initial Catalog=cleanfuel; uid=sa; pwd=Cleanfuel1"; // live
+        private string conn_string = "Data Source =CF-IT\\CFSTNSERVER; Initial Catalog=CFappDatabase; uid=sa; pwd=Cl3@nfu3l"; // testing
         public static string stncode;
         public static string srfno;
         public static string fileloc = "E:\\SRF IMAGES\\";
@@ -543,7 +543,7 @@ namespace CF_SRF
             List<action_per_srf> actions = new List<action_per_srf>();
             SqlConnection connection = new SqlConnection(this.conn_string);
             connection.Open();
-            SqlCommand sqlcmd = new SqlCommand("SELECT SRA.sraStnCode,SRA.sraNo,convert(varchar,SRA.sraDate, 107) AS sraDate,SRA.sraSeqNo,SRA.sraAction,SS.ssDesc,SRA.sraUserID, CASE WHEN E.empFName IS NULL And E.empLName IS NULL THEN 'NO DATA' WHEN E.empFName IS NOT NULL And E.empLName IS NOT NULL THEN E.empFName +' ' + E.empLName END AS techfullname FROM ServiceReportAction SRA LEFT JOIN Employees E ON E.empNo = SRA.sraTechID LEFT JOIN SRFStatus SS ON SRA.sraStatus = SS.ssCode WHERE SRA.sraStnCode = @stn AND SRA.sraNo = @srfno ORDER BY SRA.sraSeqNo DESC", connection);
+            SqlCommand sqlcmd = new SqlCommand("SELECT SRA.sraStnCode,SRA.sraNo,convert(varchar,SRA.sraDate, 107) AS sraDate,SRA.sraSeqNo,SRA.sraAction,SS.ssDesc,SRA.sraUserID, ISNULL((SELECT ';'+E.empFName+' '+E.empLName FROM ServiceTech ST LEFT JOIN Employees E ON E.empNo = ST.stTechID WHERE ST.stStnCode = SRA.sraStnCode AND ST.stSRFNo = SRA.sraNo AND SRA.sraSeqNo = ST.stSeqNo ORDER BY ST.stSeqNo DESC FOR XML PATH('')),'NO DATA') AS techfullname FROM ServiceReportAction SRA LEFT JOIN SRFStatus SS ON SRA.sraStatus = SS.ssCode WHERE SRA.sraStnCode = @stn AND SRA.sraNo = @srfno ORDER BY SRA.sraSeqNo DESC", connection);
             sqlcmd.CommandType = System.Data.CommandType.Text;
             sqlcmd.Parameters.AddWithValue("@stn", stn);
             sqlcmd.Parameters.AddWithValue("@srfno", srfno);
@@ -576,27 +576,28 @@ namespace CF_SRF
             SqlConnection connection = new SqlConnection(this.conn_string);
             SqlCommand sqlcmd = new SqlCommand();
             connection.Open();
-            sqlcmd = new SqlCommand("INSERT INTO ServiceReportAction ( " +
-                                "sraStnCode," +
-                                "sraNo," +
-                                "sraDate," +
-                                "sraSeqNo," +
-                                "sraAction," +
-                                "sraUserID," +
-                                "sraSysDate," +
-                                "sraTechID," +
-                                "sraStatus" +
-                                ") VALUES(" +
-                                "@stncode," +
-                                "@no," +
-                                "getdate()," +
-                                "@seq," +
-                                "@action," +
-                                "@sraUser," +
-                                "SYSDATETIME()," +
-                                "@techID," +
-                                "@status)", connection);
-            sqlcmd.Parameters.AddWithValue("@techID", sratechID);
+            sqlcmd = new SqlCommand("" +
+                "DECLARE @sraStnCode AS VARCHAR(5) " +
+                "DECLARE @sraNo AS VARCHAR (20) " +
+                "DECLARE @sraDate AS DATE " +
+                "DECLARE @sraSeqNo AS VARCHAR (5) " +
+                "DECLARE @sraAction AS VARCHAR(100) " +
+                "DECLARE @sraUserID AS VARCHAR (20) " +
+                "DECLARE @sraSysDate AS DATE " +
+                "DECLARE @sraStatus AS VARCHAR (5) " +
+                "SET @sraStnCode = @stncode " +
+                "SET @sraNo = @no " +
+                "SET @sraDate  = GETDATE() " +
+                "SET @sraSeqNo  = @seq " +
+                "SET @sraAction  = @action " +
+                "SET @sraUserID = @sraUser " +
+                "SET @sraSysDate = SYSDATETIME() " +
+                "SET @sraStatus  = @status " +
+                "INSERT INTO ServiceReportAction ( sraStnCode,sraNo,sraDate,sraSeqNo,sraAction,sraUserID,sraSysDate,sraStatus) " +
+                "VALUES (@sraStnCode,@sraNo,@sraDate,@sraSeqNo,@sraAction,@sraUserID,@sraSysDate,@sraStatus) " +
+                "UPDATE ServiceRequestForm SET srfStatus = @sraStatus, srfUpdateDate = @sraSysDate, srfCloseDate = CASE WHEN @sraStatus = '8888' OR @sraStatus = '0001' THEN @sraSysDate ELSE NULL END, srfUpdateUserID = @sraUserID " +
+                "WHERE srfStnCode =@sraStnCode AND srfNo = @sraNo", connection);
+            
             sqlcmd.Parameters.AddWithValue("@stncode", sraStncode);
             sqlcmd.Parameters.AddWithValue("@no", sraNo);
             sqlcmd.Parameters.AddWithValue("@seq", seq);
@@ -605,11 +606,27 @@ namespace CF_SRF
             sqlcmd.Parameters.AddWithValue("@status", sraStatus);
             int result = sqlcmd.ExecuteNonQuery();
 
-            Boolean gg = status_updater(sraStncode, sraNo, sraStatus, srauserID);
-            if (result == 1)//&& gg == true)
+           
+
+
+            if (result == 2)
             {
                 status = "ACTION SUCCCEFULLY ADDED";
+                if (!sratechID.Trim().Equals(""))
+                {
+                    string[] textSplit = sratechID.Split(' ');
+                    int x = 0;
+                    while (textSplit.Length > x)
+                    {
+                        add_tech(textSplit[x], sraStncode, seq, sraNo);
+                        x++;
+                    }
+                }
+                else
+                {
 
+                }
+                
             }
             else
             {
@@ -665,53 +682,7 @@ namespace CF_SRF
             return number;
 
         }
-        // status updater
-        public Boolean status_updater(string stn, string srf_no, string status, string user)
-        {
-            SqlConnection connection = new SqlConnection(this.conn_string);
-            SqlCommand sqlcmd = new SqlCommand();
-            connection.Open();
-            String cmd;
-            if (status.Trim().Equals("0001") || status.Trim().Equals("8888"))
-            {
-
-                cmd = "UPDATE ServiceRequestForm SET " +
-                    "srfStatus = @status, " +
-                    "srfUpdateDate = SYSDATETIME(), " +
-                    "srfCloseDate = SYSDATETIME()," +
-                    "srfUpdateUserID = @user" +
-                    " WHERE " +
-                    "srfStnCode =@stn " +
-                    "AND " +
-                    "srfNo = @no";
-            }
-            else
-            {
-                cmd = "UPDATE ServiceRequestForm SET " +
-                    "srfStatus = @status, " +
-                    "srfUpdateDate = SYSDATETIME()," +
-                    "srfUpdateUserID = @user " +
-                    "WHERE " +
-                    "srfStnCode =@stn " +
-                    "AND " +
-                    "srfNo = @no";
-            }
-            sqlcmd = new SqlCommand(cmd, connection);
-            sqlcmd.Parameters.AddWithValue("@stn", stn);
-            sqlcmd.Parameters.AddWithValue("@no", srf_no);
-            sqlcmd.Parameters.AddWithValue("@status", status);
-            sqlcmd.Parameters.AddWithValue("@user", user);
-            int result = sqlcmd.ExecuteNonQuery();
-            if (result == 1)
-            {
-                return true;
-            }
-            else
-            {
-                return false;
-
-            }
-        }
+   
         public List<tech_id> get_tech(string techcat)
         {
             List<tech_id> emp = new List<tech_id>();
@@ -733,6 +704,29 @@ namespace CF_SRF
             sdr.Close();
             connection.Close();
             return emp.ToList();
+        }
+        public Boolean add_tech(string tech, string stn, string seq, string srfno )
+        {
+            Boolean status = false;
+            SqlConnection connection = new SqlConnection(this.conn_string);
+            SqlCommand sqlcmd = new SqlCommand();
+            connection.Open();
+            sqlcmd = new SqlCommand("INSERT INTO ServiceTech( stStnCode,stSRFNo,stSeqNo,stTechID) VALUES (@stn,@srfno,@seq,@tech)", connection);
+            sqlcmd.Parameters.AddWithValue("@stn", stn);
+            sqlcmd.Parameters.AddWithValue("@srfno", srfno);
+            sqlcmd.Parameters.AddWithValue("@seq", seq);
+            sqlcmd.Parameters.AddWithValue("@tech", tech);
+            int result = sqlcmd.ExecuteNonQuery();
+            if (result == 1)
+            {
+                connection.Close();
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+            
         }
     }
 
