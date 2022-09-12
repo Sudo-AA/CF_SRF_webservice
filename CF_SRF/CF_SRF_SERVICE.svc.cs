@@ -21,8 +21,8 @@ namespace CF_SRF
     // NOTE: In order to launch WCF Test Client for testing this service, please select Service1.svc or Service1.svc.cs at the Solution Explorer and start debugging.
     public class CF_SRF_SERVICE : ICF_SRF_SERVICE1
     {
-        //private string conn_string = "Data Source =CF-SQL\\CFSQLSERVER; Initial Catalog=cleanfuel; uid=sa; pwd=Cleanfuel1"; // live
-        private string conn_string = "Data Source =CF-IT\\CFSTNSERVER; Initial Catalog=CFappDatabase; uid=sa; pwd=Cl3@nfu3l"; // testing
+        private string conn_string = "Data Source =CF-SQL\\CFSQLSERVER; Initial Catalog=****************; uid=sa; pwd=***********"; // live 
+        //private string conn_string = "Data Source =CF-IT\\CFSTNSERVER; Initial Catalog=CFappDatabase; uid=sa; pwd=Cl3@nfu3l"; // testing
         public static string stncode;
         public static string srfno;
         public static string fileloc = "E:\\SRF IMAGES\\";
